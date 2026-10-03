@@ -18,6 +18,7 @@ from .acp import Pool
 from .config import Settings
 from .errors import GatewayError
 from .protocol import build_prompt, decode_message
+from .responses import Responses, ResponsesOutput
 from .schemas import Channel, Chat, Credentials, Key, PasswordChange, Setup
 from .security import csrf_token, password_ok
 from .store import Store
@@ -254,7 +255,7 @@ def create_app(settings=None, runtime_factory=None):
                 "max_tokens": False,
                 "vision": False,
                 "embeddings": False,
-                "responses": False,
+                "responses": True,
             },
         }
 
@@ -386,15 +387,28 @@ def create_app(settings=None, runtime_factory=None):
     async def chat(request: Request):
         key = api_key(request)
         data = await parse(request, Chat)
+        return await complete(request, key, data)
+
+    @app.post("/v1/responses")
+    async def responses(request: Request):
+        key = api_key(request)
+        data = await parse(request, Responses)
+        return await complete(request, key, data.to_chat(), data)
+
+    async def complete(request, key, data, responses_data=None):
         if key["allowed_models"] and data.model not in key["allowed_models"]:
             raise GatewayError(403, "model_forbidden", "API key cannot access this model")
         runtime, selected = pool.select(data.model)
-        ident, started = "chatcmpl-" + uuid.uuid4().hex, time.monotonic()
+        ident = ("resp_" if responses_data else "chatcmpl-") + uuid.uuid4().hex
+        started = time.monotonic()
         store.reserve(key, ident, runtime.channel["id"], data.model)
         created = int(time.time())
         base = {"id": ident, "created": created, "model": data.model}
+        output = ResponsesOutput(responses_data, ident, created) if responses_data else None
 
         def chunk(delta, finish=None, usage=None):
+            if output:
+                return output.delta(delta)
             payload = {
                 **base,
                 "object": "chat.completion.chunk",
@@ -455,6 +469,9 @@ def create_app(settings=None, runtime_factory=None):
                 store.finish(ident, "success", duration, done["usage"], ttft_ms=ttft)
                 succeeded = True
                 if streaming:
+                    if output:
+                        yield output.finish(message, done["usage"], done["stop"], structured)
+                        return
                     if structured:
                         delta = {k: v for k, v in message.items() if k != "role"}
                         if "tool_calls" in delta:
@@ -468,6 +485,9 @@ def create_app(settings=None, runtime_factory=None):
                             yield chunk({}, usage=done["usage"])
                     yield "data: [DONE]\n\n"
                 else:
+                    if output:
+                        yield output.result(message, done["usage"], done["stop"])
+                        return
                     response = {
                         **base,
                         "object": "chat.completion",
@@ -503,8 +523,11 @@ def create_app(settings=None, runtime_factory=None):
                     ttft_ms=ttft,
                 )
                 if streaming:
-                    yield "data: " + json.dumps(error.payload()) + "\n\n"
-                    yield "data: [DONE]\n\n"
+                    if output:
+                        yield output.error(error)
+                    else:
+                        yield "data: " + json.dumps(error.payload()) + "\n\n"
+                        yield "data: [DONE]\n\n"
                 else:
                     raise error from exc
             finally:
@@ -521,7 +544,7 @@ def create_app(settings=None, runtime_factory=None):
 
             async def events():
                 try:
-                    yield chunk({"role": "assistant", "content": ""})
+                    yield output.start() if output else chunk({"role": "assistant", "content": ""})
                     async with aclosing(execute(True)) as execution:
                         async for event in execution:
                             yield event

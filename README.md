@@ -66,6 +66,11 @@ curl http://127.0.0.1:8080/v1/chat/completions \
   -H "Authorization: Bearer $GATEWAY_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"model":"YOUR_SYNCED_MODEL_ID","messages":[{"role":"user","content":"你好"}],"stream":true,"stream_options":{"include_usage":true}}'
+
+curl http://127.0.0.1:8080/v1/responses \
+  -H "Authorization: Bearer $GATEWAY_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"YOUR_SYNCED_MODEL_ID","input":"你好","store":false,"stream":true}'
 ```
 
 模型名必须换成 `/v1/models` 中的 ID，也可以设置渠道别名。接口细节见 [API 文档](docs/api.md)。
@@ -77,7 +82,8 @@ curl http://127.0.0.1:8080/v1/chat/completions \
 - 不提供 ACP 文件系统、终端或 MCP 能力，原生工具权限请求全部拒绝。API 函数工具是经过名称与 Schema 校验的调用意图，由客户端执行。
 - 普通文本实时流式输出，工具与 JSON 模式先缓冲、校验再输出；不能保证所有模型都遵守结构化输出要求，失败会报错。流内上游错误通过 SSE error 返回，不伪造成功结束。
 - `reasoning_effort` 使用官方配置选项，支持情况由模型决定。用量缺失时不估算 Token。
-- 暂不支持图片/音频、Responses API、embeddings、文件上传，以及 `temperature/max_tokens` 等无法准确映射的参数；未知参数返回 400。
+- 支持无状态 Responses API 的文本、函数工具、JSON 输出和标准 SSE 生命周期事件；`instructions` 与完整 `input` 历史桥接到同一 ACP 处理流程。推理摘要来自 ACP 实际返回的推理文本，需请求 `reasoning.summary`。
+- 暂不支持图片/音频、embeddings、文件上传，以及 `temperature/max_tokens/max_output_tokens` 等无法准确映射的参数；未知参数返回 400。Responses 不保存正文，不支持 `store:true`、`previous_response_id`、Conversations、后台任务、托管工具或加密推理状态。
 - Token 限额是按已完成请求实际用量的准入阈值，达到后阻止新请求，允许在途请求完成，可能超出阈值。每日限额与趋势按 UTC 计算。
 - 按优先级选取已同步且启用的渠道；失败不自动重试或换模型，不规避提供商额度或使用政策。
 
@@ -120,3 +126,4 @@ npm run build
 - [OpenCode Config](https://opencode.ai/docs/config/)
 - [Agent Client Protocol](https://agentclientprotocol.com/protocol/prompt-turn)
 - [New API](https://github.com/QuantumNous/new-api)：仅作为界面信息架构参考，不复制其实现。
+- [OpenAI Responses](https://developers.openai.com/api/reference/python/resources/responses/methods/create)：兼容请求、响应对象与流式事件格式。

@@ -14,6 +14,7 @@ from contextlib import suppress
 import anyio
 import httpx
 
+from . import __version__
 from .errors import GatewayError
 
 
@@ -51,7 +52,10 @@ def usage_from_acp(value):
         "prompt_tokens": prompt,
         "completion_tokens": completion,
         "total_tokens": prompt + completion,
-        "prompt_tokens_details": {"cached_tokens": value.get("cachedReadTokens", 0)},
+        "prompt_tokens_details": {
+            "cached_tokens": value.get("cachedReadTokens", 0),
+            "cache_write_tokens": value.get("cachedWriteTokens", 0),
+        },
         "completion_tokens_details": {"reasoning_tokens": value.get("thoughtTokens", 0)},
     }
 
@@ -188,7 +192,7 @@ class Runtime:
                     "initialize",
                     {
                         "protocolVersion": 1,
-                        "clientInfo": {"name": "OpenCode ACP Gateway", "version": "0.1.0"},
+                        "clientInfo": {"name": "OpenCode ACP Gateway", "version": __version__},
                         "clientCapabilities": {
                             "fs": {"readTextFile": False, "writeTextFile": False},
                             "terminal": False,
