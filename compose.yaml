@@ -1,0 +1,44 @@
+services:
+  gateway:
+    build:
+      context: .
+      args:
+        OPENCODE_VERSION: ${OPENCODE_VERSION:-1.18.34}
+    image: opencode-acp-gateway:0.1.0
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080"
+    environment:
+      GATEWAY_SECURE_COOKIES: ${GATEWAY_SECURE_COOKIES:-false}
+      GATEWAY_PUBLIC_ORIGIN: ${GATEWAY_PUBLIC_ORIGIN:-}
+      GATEWAY_TRUSTED_PROXIES: ${GATEWAY_TRUSTED_PROXIES:-127.0.0.1}
+      TZ: Asia/Shanghai
+    volumes:
+      - gateway-data:/data
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  caddy:
+    image: caddy:2-alpine
+    profiles: [https]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      GATEWAY_DOMAIN: ${GATEWAY_DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      gateway:
+        condition: service_healthy
+volumes:
+  gateway-data:
+  caddy-data:
+  caddy-config:
