@@ -7,7 +7,7 @@
 - Python：31 个测试通过，覆盖认证/CSRF、哈希与加密、撤销/到期/白名单、原子限额、参数拒绝、JSON/工具校验、元数据、用量与错误恢复。
 - ACP 测试使用真实 stdio 模拟子进程，验证会话分流、权限拒绝、取消/关闭/HTTP 删除、清理失败报错和服务器取消作用域下的清理。
 - 前端：2 个 SSE 测试通过，覆盖 UTF-8 分片、DONE 和非法 JSON；TypeScript 检查与 Vite 生产构建通过。
-- Docker、Compose、容器 WebUI/健康/引导令牌和 CLI 检查由 Actions 执行，状态以对应提交工作流为准。
+- Linux Actions 已通过：Docker 构建、Compose 校验、容器 WebUI/健康/引导令牌和捆绑 CLI 均成功。对应代码提交 `67d8bf7`，见 [工作流结果](https://github.com/xtawa/opencode-acp-gateway/actions/runs/37120701846)。
 
 ## 真实上游
 
